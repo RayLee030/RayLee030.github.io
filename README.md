@@ -30,7 +30,6 @@
 
 ## 🖼️ 使用畫面
 
-> ![功能畫面預覽](https://user-images.githubusercontent.com/your-image-placeholder.png)  
 > 範例畫面：損益分析、交易明細、進度條等
 
 ---
