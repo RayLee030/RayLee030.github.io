@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSC 錢包每日發送 BNB 交易量統計 (含USD價值、明細與損益)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+    body {
+        font-family: 'Inter', sans-serif;
+        background-color: #313338; /* Discord 主背景 */
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
+    }
+    .container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background-color: #232428; /* 比 #36393f 更深一點 */
+        border-radius: 0.75rem;
+        box-shadow: 0 8px 24px 0 rgba(0,0,0,0.5);
+        color: #fff;
+        position: relative;
+        z-index: 1;
+    }
+    .container h1,
+    .container h2,
+    .container h3,
+    .container h4,
+    .container h5,
+    .container h6 {
+        color: #fff !important;
+    }
+    .input-group {
+        margin-bottom: 1.5rem;
+    }
+    .input-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #fff; /* 統一為白色 */
+    }
+    .input-group input[type="text"],
+    .input-group input[type="date"] {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #23272a;
+        border-radius: 0.375rem;
+        background: #23272a;
+        color: #fff;
+        box-shadow: inset 0 1px 2px 0 rgba(0,0,0,0.15);
+        transition: border 0.2s;
+    }
+    .input-group input[type="text"]:focus,
+    .input-group input[type="date"]:focus {
+        border: 1.5px solid #5865f2;
+        outline: none;
+        background: #23272a;
+    }
+    .btn {
+        background-color: #5865f2; /* Discord 藍紫 */
+        color: #fff;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border: none;
+    }
+    .btn:hover {
+        background-color: #4752c4;
+        color: #fff;
+    }
+    .results-area, .transaction-details-area, .trading-volume-area { /* Added .trading-volume-area */
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background-color: #2b2d31; /* Discord 次內容區塊 */
+        border-radius: 0.375rem;
+        border: 1px solid #23272a;
+        color: #fff;
+    }
+    .results-area h3, .transaction-details-area h3, .trading-volume-area h3 { /* Added .trading-volume-area h3 */
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #fff !important;
+    }
+    .loading-spinner {
+        border: 4px solid #23272a;
+        border-top: 4px solid #5865f2;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+        margin: 1rem auto;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .error-message {
+        color: #fff;
+        background-color: #ed4245; /* Discord red */
+        border: 1px solid #fff;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        margin-top: 1rem;
+    }
+    .success-message {
+        color: #23272a; /* Dark text for light green background */
+        background-color: #57f287; /* Discord green */
+        border: 1px solid #57f287;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        margin-top: 1rem;
+    }
+    table th, table td {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #23272a;
+    }
+    table th {
+        background-color: #23272a;
+        font-weight: 600;
+        color: #b5bac1;
+    }
+    table tr {
+        background-color: transparent;
+    }
+    table tbody tr:nth-child(even) {
+        background-color: #313338;
+    }
+    a {
+        color: #00a8fc;
+        text-decoration: underline;
+    }
+    a:hover {
+        color: #5865f2;
+    }
+    #noTransactionsDetailText {
+        color: #b5bac1;
+    }
+    .progress-bar-container {
+        background-color: #3e4046; /* Darker gray for progress bar background */
+    }
+    /* 移除毛玻璃效果 */
+    .frosted-glass-left, .frosted-glass-right {
+        display: none !important;
+    }
+    .count-badge {
+        background-color: #5865f2; 
+        color: white;
+        padding-left: 0.625rem; 
+        padding-right: 0.625rem; 
+        padding-top: 0.125rem; 
+        padding-bottom: 0.125rem; 
+        border-radius: 9999px; 
+        font-size: 0.75rem; 
+        font-weight: 600;
+        margin-left: 0.5rem; 
+        display: inline-flex; 
+        align-items: center;
+        justify-content: center;
+        min-width: 1.5rem; 
+        height: 1.5rem;
+    }
+    .text-profit-positive {
+        color: #2dc770; /* Green color for positive P&L */
+    }
+    .text-profit-negative {
+        color: #ed4245; /* Red color for negative P&L */
+    }
+</style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">BSC 錢包每日發送 BNB 交易量統計</h1>
+        <p class="text-sm text-gray-600 mb-4 text-center">
+            統計指定錢包在 UTC+8 時區，從所選日期早上 8:00 到隔日早上 7:59 之間發送的 BNB 總量及其約当 USD 價值。同時計算當日綜合損益 (USD計價) 與交易量 (USD計價)。
+        </p>
+
+        <div class="input-group">
+            <label for="apiKey">BscScan API Key:</label>
+            <input
+                type="text"
+                id="apiKey"
+                placeholder="請輸入您的 BscScan API Key"
+                style="background:#222;color:#fff;border:1px solid #333;"
+            >
+            <p class="text-xs text-gray-500 mt-1">如果您沒有 API Key，請至 <a href="https://bscscan.com/myapikey" target="_blank" class="text-blue-500 hover:underline">BscScan 官網</a>申請。</p>
+        </div>
+
+        <div class="input-group">
+            <label for="walletAddress">錢包地址 (BSC):</label>
+            <input
+                type="text"
+                id="walletAddress"
+                placeholder="例如: 0x..."
+                style="background:#222;color:#fff;border:1px solid #333;"
+            >
+        </div>
+
+        <div class="input-group">
+            <label for="targetDate" style="color:#fff;">選擇日期 (UTC+8):</label>
+            <input type="date" id="targetDate" style="background:#222;color:#fff;border:1px solid #333;">
+        </div>
+
+        <button id="fetchButton" class="btn w-full">查詢交易量與損益</button>
+
+        <div id="loadingIndicator" class="hidden text-center mt-4">
+            <div class="loading-spinner"></div>
+            <p>正在查詢中，請稍候...</p>
+        </div>
+        
+        <div id="messageArea" class="mt-4"></div>
+
+        <div id="resultsArea" class="results-area hidden">
+            <h3>統計結果 (BNB 發送量)</h3>
+            <p id="resultText"></p>
+            <p class="text-xs text-gray-500 mt-2">數據來源: BscScan API (交易與BNB價格)</p>
+        </div>
+
+        <div id="tradingVolumeArea" class="trading-volume-area hidden">
+            <h3>交易量 (USD 計價)</h3>
+            <p id="tradingVolumeText" class="mb-2"></p>
+            <div class="progress-bar-container w-full bg-gray-700 rounded-full h-6">
+                <div id="progressBarFill" class="bg-blue-600 h-6 rounded-full text-xs font-medium text-white flex items-center justify-center" style="width: 0%;">
+                    <!-- Percentage can be shown here -->
+                </div>
+            </div>
+            <p id="progressText" class="text-sm text-gray-400 mt-1 text-right"></p>
+            <p class="text-xs text-gray-500 mt-2">交易量 (USD) = (BNB發送量 × 2) × BNB/USD價格。進度條顯示當前交易量在當前階段的進度百分比。</p>
+        </div>
+
+        <div id="profitLossArea" class="results-area hidden">
+            <h3>損益 (USD 計價)</h3>
+            <p id="profitLossText"></p>
+            <p class="text-xs text-gray-500 mt-2">計算方式：(總收到 BNB (含內部交易) - 總發送 BNB - 總 Gas 費用) 的 BNB 淨值 × BNB 即時 USD 價格。</p>
+        </div>
+
+        <div id="transactionDetailsArea" class="transaction-details-area mt-4 hidden">
+            <h3 id="sentTxDetailTitle" class="text-lg font-semibold mb-2">發送交易明細 (BNB, UTC+8)</h3> 
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="px-3 py-2 text-left">編號</th>
+                            <th class="px-3 py-2 text-left">哈希 (Hash)</th>
+                            <th class="px-3 py-2 text-left">時間</th>
+                            <th class="px-3 py-2 text-right">發送數量 (BNB)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionListBody">
+                        <!-- Transaction rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            <p id="noTransactionsDetailText" class="text-gray-600 mt-2 hidden">此期間沒有符合條件的發送交易明細。</p>
+        </div>
+    </div>
+
+    <script>
+        // --- 配置 ---
+        const BSCSCAN_API_ENDPOINT = 'https://api.bscscan.com/api';
+
+        // --- DOM 元素 ---
+        const apiKeyInput = document.getElementById('apiKey');
+        const walletAddressInput = document.getElementById('walletAddress');
+        const targetDateInput = document.getElementById('targetDate');
+        const fetchButton = document.getElementById('fetchButton');
+        const resultsArea = document.getElementById('resultsArea');
+        const resultText = document.getElementById('resultText');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageArea = document.getElementById('messageArea');
+        const transactionDetailsArea = document.getElementById('transactionDetailsArea');
+        const transactionListBody = document.getElementById('transactionListBody');
+        const noTransactionsDetailText = document.getElementById('noTransactionsDetailText');
+        const profitLossArea = document.getElementById('profitLossArea');
+        const profitLossText = document.getElementById('profitLossText');
+        const tradingVolumeArea = document.getElementById('tradingVolumeArea');
+        const tradingVolumeText = document.getElementById('tradingVolumeText');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressText = document.getElementById('progressText');
+        const sentTxDetailTitleEl = document.getElementById('sentTxDetailTitle'); 
+
+
+        // --- 初始化 ---
+        function initialize() {
+            const todayUTC8 = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Shanghai"}));
+            targetDateInput.value = todayUTC8.toISOString().split('T')[0];
+            apiKeyInput.value = "W2HI1Y7RSVSMCVCS9VPSU58EA3V6WQY5JY"; 
+        }
+        initialize();
+
+        // --- 事件監聽 ---
+        fetchButton.addEventListener('click', getWalletStats);
+
+        // --- 獲取 BNB 價格函數 (使用 BscScan API) ---
+        async function getBnbPriceInUsd(apiKey) { 
+            const bscScanBnbPriceEndpoint = `${BSCSCAN_API_ENDPOINT}?module=stats&action=bnbprice&apikey=${apiKey}`;
+            try {
+                console.log("請求 BscScan BNB 價格 API:", bscScanBnbPriceEndpoint);
+                await new Promise(resolve => setTimeout(resolve, 200)); 
+                const response = await fetch(bscScanBnbPriceEndpoint);
+                if (!response.ok) {
+                    throw new Error(`BscScan BNB 價格 API 請求失敗: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log("BscScan BNB 價格 API 響應:", data);
+
+                if (data.status === "1" && data.result && data.result.ethusd) { 
+                    return parseFloat(data.result.ethusd);
+                } else {
+                    console.error("BscScan BNB Price API did not return expected data:", data);
+                    throw new Error(`無法從 BscScan API 獲取 BNB 價格 (回應: ${data.message || JSON.stringify(data.result)})`);
+                }
+            } catch (error) {
+                console.error("獲取 BNB 價格 (BscScan) 時發生錯誤:", error);
+                return null;
+            }
+        }
+
+        // Helper function to find the next power of two stage for the progress bar (starts at 2)
+        function getNextPowerOfTwoStage(n) {
+            if (n <= 0) return 2; 
+            if (n <= 2) return 2; 
+            let p = 2; 
+            while (p < n) {
+                p *= 2;
+            }
+            return p;
+        }
+
+
+        // --- 主要邏輯函數 ---
+        async function getWalletStats() {
+            clearMessages();
+            resultsArea.classList.add('hidden');
+            tradingVolumeArea.classList.add('hidden'); 
+            profitLossArea.classList.add('hidden'); 
+            transactionDetailsArea.classList.add('hidden');
+            transactionListBody.innerHTML = '';
+            noTransactionsDetailText.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            fetchButton.disabled = true;
+            resultText.textContent = ""; 
+            tradingVolumeText.textContent = ""; 
+            progressText.textContent = "";
+            progressBarFill.style.width = '0%';
+            progressBarFill.textContent = '0%';
+            profitLossText.textContent = "";
+            // Reset sent transaction detail title
+            sentTxDetailTitleEl.innerHTML = "發送交易明細 (BNB, UTC+8)";
+
+
+            const apiKey = apiKeyInput.value.trim();
+            const walletAddress = walletAddressInput.value.trim().toLowerCase();
+            const selectedDateStr = targetDateInput.value;
+
+            if (!apiKey) {
+                displayError("請輸入您的 BscScan API Key。");
+                loadingIndicator.classList.add('hidden');
+                fetchButton.disabled = false;
+                return;
+            }
+            if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+                displayError("請輸入有效的 BSC 錢包地址。");
+                loadingIndicator.classList.add('hidden');
+                fetchButton.disabled = false;
+                return;
+            }
+            if (!selectedDateStr) {
+                displayError("請選擇一個日期。");
+                loadingIndicator.classList.add('hidden');
+                fetchButton.disabled = false;
+                return;
+            }
+
+            const startDateUTC8 = new Date(`${selectedDateStr}T08:00:00+08:00`);
+            const endDateUTC8 = new Date(startDateUTC8);
+            endDateUTC8.setDate(startDateUTC8.getDate() + 1);
+            endDateUTC8.setHours(7, 59, 59, 999); 
+
+            const startTimestampUTC = Math.floor(startDateUTC8.getTime() / 1000);
+            const endTimestampUTC = Math.floor(endDateUTC8.getTime() / 1000);
+            
+            console.log(`查詢時間範圍 (UTC+8): ${startDateUTC8.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} - ${endDateUTC8.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`);
+            console.log(`查詢時間戳 (UTC): ${startTimestampUTC} - ${endTimestampUTC}`);
+
+            let totalBnbSentForDisplayWei = 0n; 
+            let sentBnbTxCounter = 0; 
+            let transactionDetailsHtml = '';
+            
+            let totalBnbReceivedForPlWei = 0n;   
+            let totalBnbSentForPlWei = 0n;       
+            let totalGasFeesWei = 0n;            
+
+            let bnbPriceUsdVal = null; 
+            let totalTransactionsProcessed = 0; 
+
+            try {
+                bnbPriceUsdVal = await getBnbPriceInUsd(apiKey); 
+
+                // 1. Fetch Normal BNB Transactions (txlist)
+                const bnbTxApiUrl = `${BSCSCAN_API_ENDPOINT}?module=account&action=txlist&address=${walletAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc&apikey=${apiKey}`;
+                console.log("請求 BscScan BNB 交易 API (txlist):", bnbTxApiUrl);
+                await new Promise(resolve => setTimeout(resolve, 200));
+                const bnbTxResponse = await fetch(bnbTxApiUrl);
+                if (!bnbTxResponse.ok) throw new Error(`BscScan BNB 交易 API (txlist) 請求失敗: ${bnbTxResponse.status}`);
+                const bnbTxData = await bnbTxResponse.json();
+                console.log("BscScan BNB 交易 API (txlist) 響應:", bnbTxData);
+
+                let bnbTransactionsInPeriod = [];
+                if (bnbTxData.status === "1" && Array.isArray(bnbTxData.result)) {
+                    bnbTransactionsInPeriod = bnbTxData.result.filter(tx => {
+                        const txTimestampUTC = parseInt(tx.timeStamp);
+                        return txTimestampUTC >= startTimestampUTC && txTimestampUTC <= endTimestampUTC && tx.isError === "0";
+                    });
+                } else if (bnbTxData.status === "0" && bnbTxData.message === "No transactions found") {
+                    console.log("此錢包在 BscScan 上未找到任何標準 BNB 交易記錄。");
+                } else if (bnbTxData.status === "0" && bnbTxData.message === "NOTOK" && bnbTxData.result && typeof bnbTxData.result === 'string' && bnbTxData.result.toLowerCase().includes("max rate limit reached")) {
+                     throw new Error(`BscScan API 錯誤: BNB 交易列表 (txlist) 已達到最大請求速率限制。`);
+                } else {
+                    throw new Error(`BscScan BNB 交易 API (txlist) 錯誤: ${bnbTxData.message || '未知錯誤'}`);
+                }
+
+                // Process Normal BNB Transactions
+                for (const tx of bnbTransactionsInPeriod) {
+                    totalTransactionsProcessed++; 
+                    const bnbValue = BigInt(tx.value);
+                    const gasUsed = BigInt(tx.gasUsed);
+                    const gasPrice = BigInt(tx.gasPrice);
+                    const currentTxGasFeeWei = gasUsed * gasPrice;
+
+                    if (tx.from.toLowerCase() === walletAddress) { // Outgoing TX
+                        totalGasFeesWei += currentTxGasFeeWei; 
+
+                        if (bnbValue > 0n) { 
+                            totalBnbSentForDisplayWei += bnbValue; 
+                            totalBnbSentForPlWei += bnbValue;      
+                            sentBnbTxCounter++;
+                            
+                            const txDate = new Date(parseInt(tx.timeStamp) * 1000);
+                            const utc8TimeString = txDate.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                            const bnbTxAmount = (Number(bnbValue) / 1e18).toFixed(8);
+                            transactionDetailsHtml += `
+                                <tr>
+                                    <td class="border px-3 py-2 text-center">${sentBnbTxCounter}</td>
+                                    <td class="border px-3 py-2 text-xs break-all"><a href="https://bscscan.com/tx/${tx.hash}" target="_blank" class="text-blue-500 hover:underline">${tx.hash}</a></td>
+                                    <td class="border px-3 py-2 whitespace-nowrap">${utc8TimeString}</td>
+                                    <td class="border px-3 py-2 text-right whitespace-nowrap">${bnbTxAmount} BNB</td>
+                                </tr>`;
+                        }
+                    } else if (tx.to.toLowerCase() === walletAddress) { // Incoming TX
+                        if (bnbValue > 0n) {
+                            totalBnbReceivedForPlWei += bnbValue; 
+                        }
+                    }
+                }
+
+                // 2. Fetch Internal BNB Transactions (txlistinternal)
+                const internalTxApiUrl = `${BSCSCAN_API_ENDPOINT}?module=account&action=txlistinternal&address=${walletAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc&apikey=${apiKey}`;
+                console.log("請求 BscScan 內部交易 API (txlistinternal):", internalTxApiUrl);
+                await new Promise(resolve => setTimeout(resolve, 250)); 
+                const internalTxResponse = await fetch(internalTxApiUrl);
+                if (!internalTxResponse.ok) throw new Error(`BscScan 內部交易 API (txlistinternal) 請求失敗: ${internalTxResponse.status}`);
+                const internalTxData = await internalTxResponse.json();
+                console.log("BscScan 內部交易 API (txlistinternal) 響應:", internalTxData);
+
+                let internalTransactionsInPeriodForCount = []; 
+                if (internalTxData.status === "1" && Array.isArray(internalTxData.result)) {
+                    const relevantInternalTxs = internalTxData.result.filter(tx => {
+                        const txTimestampUTC = parseInt(tx.timeStamp);
+                        return txTimestampUTC >= startTimestampUTC && 
+                               txTimestampUTC <= endTimestampUTC && 
+                               tx.to.toLowerCase() === walletAddress && 
+                               tx.isError === "0" && 
+                               BigInt(tx.value) > 0n; 
+                    });
+                    internalTransactionsInPeriodForCount = relevantInternalTxs; 
+                    for (const tx of relevantInternalTxs) {
+                        totalTransactionsProcessed++; 
+                        const bnbValue = BigInt(tx.value);
+                        totalBnbReceivedForPlWei += bnbValue;
+                        console.log(`內部交易收到 BNB: ${Number(bnbValue)/1e18} from ${tx.from} (Hash: ${tx.hash})`);
+                    }
+                } else if (internalTxData.status === "0" && internalTxData.message === "No transactions found") {
+                    console.log("此錢包在 BscScan 上未找到任何內部 BNB 交易記錄。");
+                } else if (internalTxData.status === "0" && internalTxData.message === "NOTOK" && internalTxData.result && typeof internalTxData.result === 'string' && internalTxData.result.toLowerCase().includes("max rate limit reached")) {
+                     throw new Error(`BscScan API 錯誤: 內部交易列表 (txlistinternal) 已達到最大請求速率限制。`);
+                } else {
+                    console.warn(`BscScan 內部交易 API (txlistinternal) 可能發生錯誤或無適用資料: ${internalTxData.message || JSON.stringify(internalTxData.result)}`);
+                }
+                
+
+                // --- Display BNB Sent Stats and Update Sent Tx Detail Title ---
+                const bnbAmountSentForDisplay = Number(totalBnbSentForDisplayWei) / 1e18;
+                let bnbSentResultMessage = "";
+                if (sentBnbTxCounter === 0) {
+                    bnbSentResultMessage = `在此期間沒有符合條件的 BNB 發送交易。`;
+                    noTransactionsDetailText.textContent = "此期間沒有符合條件的發送交易明細。";
+                    noTransactionsDetailText.classList.remove('hidden');
+                    sentTxDetailTitleEl.innerHTML = `發送交易明細 (BNB, UTC+8) <span class="count-badge">0</span>`;
+                } else {
+                    sentTxDetailTitleEl.innerHTML = `發送交易明細 (BNB, UTC+8) <span class="count-badge">${sentBnbTxCounter}</span>`;
+                    if (bnbPriceUsdVal !== null) {
+                        const usdValue = bnbAmountSentForDisplay * bnbPriceUsdVal; 
+                        bnbSentResultMessage = `在此期間總共發送了 約 ${usdValue.toFixed(2)} USD (${bnbAmountSentForDisplay.toFixed(6)} BNB)。`;
+                    } else {
+                        bnbSentResultMessage = `在此期間總共發送了 ${bnbAmountSentForDisplay.toFixed(6)} BNB。(無法獲取即時 USD 價格)`;
+                    }
+                }
+                resultText.innerHTML = bnbSentResultMessage;
+                resultsArea.classList.remove('hidden');
+                transactionDetailsArea.classList.remove('hidden');
+                transactionListBody.innerHTML = transactionDetailsHtml || ''; 
+                if (sentBnbTxCounter > 0) {
+                    noTransactionsDetailText.classList.add('hidden'); 
+                } else {
+                     noTransactionsDetailText.classList.remove('hidden');
+                }
+
+                // --- Calculate and Display Trading Volume & Progress Bar (USD) ---
+                let tradingVolumeUsd = 0;
+                if (bnbPriceUsdVal !== null) {
+                    tradingVolumeUsd = (bnbAmountSentForDisplay * 2) * bnbPriceUsdVal;
+                    tradingVolumeText.textContent = `當日交易量: ${tradingVolumeUsd.toFixed(2)} USD`;
+                    
+                    const currentStageMaxUsd = getNextPowerOfTwoStage(tradingVolumeUsd);
+                    const previousStageMaxUsd = (currentStageMaxUsd <= 2) ? 0 : currentStageMaxUsd / 2; 
+                    const rangeOfCurrentStage = currentStageMaxUsd - previousStageMaxUsd;
+                    
+                    let progressPercentageInStage = 0;
+                    if (rangeOfCurrentStage > 0) { 
+                        progressPercentageInStage = (Math.abs(tradingVolumeUsd - previousStageMaxUsd) / rangeOfCurrentStage) * 100;
+                    } else if (tradingVolumeUsd >= currentStageMaxUsd && currentStageMaxUsd > 0) { 
+                         progressPercentageInStage = 100; 
+                    } else if (currentStageMaxUsd === 2 && tradingVolumeUsd > 0 && tradingVolumeUsd <=2) { 
+                        progressPercentageInStage = (tradingVolumeUsd / currentStageMaxUsd) * 100;
+                    } else if (tradingVolumeUsd === 0 && currentStageMaxUsd === 2){
+                        progressPercentageInStage = 0;
+                    }
+
+                    progressPercentageInStage = Math.max(0, Math.min(progressPercentageInStage, 100)); 
+                    
+                    progressBarFill.style.width = `${progressPercentageInStage.toFixed(2)}%`;
+                    progressBarFill.textContent = `${progressPercentageInStage.toFixed(0)}%`;
+                    progressText.textContent = `${tradingVolumeUsd.toFixed(2)} / ${currentStageMaxUsd.toFixed(2)} USD`;
+                } else {
+                    tradingVolumeText.textContent = "無法獲取 BNB 價格，無法計算 USD 交易量。";
+                    progressBarFill.style.width = '0%';
+                    progressBarFill.textContent = '0%';
+                    progressText.textContent = "0.00 / 2.00 USD (價格未知)";
+                     if (bnbPriceUsdVal === null) { 
+                        displayInfo("警告：無法獲取當前 BNB/USD 價格，交易量 USD 價值計算將無法進行。");
+                    }
+                }
+                tradingVolumeArea.classList.remove('hidden');
+
+
+                // --- Calculate and Display P&L based on Net BNB change ---
+                let profitLossDisplayMessage = "";
+                if (bnbTransactionsInPeriod.length === 0 && internalTransactionsInPeriodForCount.length === 0) { 
+                     profitLossDisplayMessage = "當日無任何 BNB 相關鏈上活動，無法計算損益。";
+                } else if (bnbPriceUsdVal === null) {
+                     if (totalBnbReceivedForPlWei > 0n || totalBnbSentForPlWei > 0n || totalGasFeesWei > 0n) {
+                        profitLossDisplayMessage = `無法獲取 BNB 當前價格，無法計算 USD 損益。<br>
+                                                    淨 BNB 變動 (未換算): ${((Number(totalBnbReceivedForPlWei - totalBnbSentForPlWei - totalGasFeesWei)) / 1e18).toFixed(8)} BNB`;
+                    } else {
+                        profitLossDisplayMessage = "當日無 BNB 淨值變動，且無法獲取 BNB 價格。";
+                    }
+                } else {
+                    const netBnbProfitLossWei = totalBnbReceivedForPlWei - totalBnbSentForPlWei - totalGasFeesWei;
+                    const netBnbProfitLoss = Number(netBnbProfitLossWei) / 1e18;
+                    const finalProfitLossUsd = netBnbProfitLoss * bnbPriceUsdVal; 
+                    
+                    let pnlColorClass = "";
+                    if (finalProfitLossUsd > 0) {
+                        pnlColorClass = "text-profit-positive";
+                    } else if (finalProfitLossUsd < 0) {
+                        pnlColorClass = "text-profit-negative";
+                    }
+                    // If zero, no class, default white will be used.
+
+                    profitLossDisplayMessage = `當日錢包總損益: <strong class="${pnlColorClass}">${finalProfitLossUsd.toFixed(2)} USD</strong><br>`;
+                    profitLossDisplayMessage += `<span class="text-xs block mt-1"> (淨 BNB 變動: ${netBnbProfitLoss.toFixed(6)} BNB</span>`;
+                    profitLossDisplayMessage += `<span class="text-xs block">&nbsp;&nbsp;總收到 (含內部): ${(Number(totalBnbReceivedForPlWei)/1e18).toFixed(6)} BNB</span>`;
+                    profitLossDisplayMessage += `<span class="text-xs block">&nbsp;&nbsp;總發送: ${(Number(totalBnbSentForPlWei)/1e18).toFixed(6)} BNB</span>`;
+                    profitLossDisplayMessage += `<span class="text-xs block">&nbsp;&nbsp;總 Gas: ${(Number(totalGasFeesWei)/1e18).toFixed(6)} BNB)</span>`;
+                }
+                profitLossText.innerHTML = profitLossDisplayMessage;
+                profitLossArea.classList.remove('hidden');
+
+                if (bnbTransactionsInPeriod.length > 0 || internalTransactionsInPeriodForCount.length > 0) {
+                    if (bnbPriceUsdVal !== null || (sentBnbTxCounter === 0 && (totalBnbReceivedForPlWei - totalBnbSentForPlWei - totalGasFeesWei) === 0n) ) {
+                         displaySuccess("查詢成功！");
+                    } else {
+                        displayInfo("查詢成功！已處理 BNB 交易，但部分 USD 價值因 BNB 價格未知而無法計算。");
+                    }
+                } else {
+                    displayInfo("查詢完成，但指定日期內未找到任何 BNB 標準或內部交易。");
+                }
+
+            } catch (error) {
+                console.error("查詢過程中發生錯誤:", error);
+                displayError(`查詢過程中發生錯誤: ${error.message}`);
+                profitLossText.innerHTML = `損益計算錯誤: ${error.message}`;
+                profitLossArea.classList.remove('hidden'); 
+                tradingVolumeText.textContent = "交易量計算錯誤。";
+                progressBarFill.style.width = '0%';
+                progressBarFill.textContent = '0%';
+                progressText.textContent = "";
+                tradingVolumeArea.classList.remove('hidden'); 
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                fetchButton.disabled = false;
+            }
+        }
+
+        // --- 顯示錯誤訊息 ---
+        function displayError(message) {
+            messageArea.innerHTML = `<div class="error-message">${message}</div>`;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- 顯示成功訊息 ---
+        function displaySuccess(message) {
+            messageArea.innerHTML = `<div class="success-message">${message}</div>`;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- 顯示一般訊息 ---
+        function displayInfo(message) {
+            messageArea.innerHTML = `<div class="p-3 mt-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300">${message}</div>`;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- 清除訊息 ---
+        function clearMessages() {
+            messageArea.innerHTML = '';
+        }
+        
+    </script>
+</body>
+</html>
